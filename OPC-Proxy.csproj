@@ -6,4 +6,9 @@
     <RootNamespace>OPC_Proxy</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="LiteDB" Version="4.1.4" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+  </ItemGroup>
+
 </Project>
