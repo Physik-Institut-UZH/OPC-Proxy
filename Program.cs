@@ -13,7 +13,13 @@ namespace OPC_Proxy
             JObject j = JObject.Parse("{isInMemory:false, filename:'pollo.dat', juno:'bul'}");
             cacheDB db = new cacheDB(j);
 
-
+            dbNode node = new dbNode() {
+                classType = "pi",
+                name = "h",
+                internalIndex = 0,
+                systemType = "kkk"
+            };
+            // db.Dispose();
         }
     }
 }
