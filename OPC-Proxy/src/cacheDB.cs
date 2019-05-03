@@ -13,14 +13,16 @@ namespace ProxyUtils{
     /// <summary>
     /// Class that holds the in memory cache database. LiteDB is used as chache DB.
     /// </summary>
-    class cacheDB {
+    public class cacheDB {
 //    class cacheDB : IDisposable {
+        public double p;
         LiteDatabase db = null;
         MemoryStream mem = null;
+        
         public LiteCollection<dbNode> nodes {get; private set;}
-        public LiteCollection<dbNamespace> namespaces {get; private set;}
-        public LiteCollection<dbVariableValue> latestValues {get; private set;}
-        public LiteCollection<dbVariableValue> bufferValues {get; private set;}
+        public LiteCollection<dbNamespace> namespaces {get;  set;}
+        public LiteCollection<dbVariableValue> latestValues {get; set;}
+        public LiteCollection<dbVariableValue> bufferValues {get; set;}
         //bool disposed = false;
 
         dbConfig _config = null;
@@ -97,7 +99,7 @@ namespace ProxyUtils{
     /// <summary>
     /// Configuration handler for DBcache
     /// </summary>
-    class dbConfig{
+    public class dbConfig{
     
         public bool isInMemory { get; set; }
         public string filename { get; set;}
@@ -113,8 +115,8 @@ namespace ProxyUtils{
     /// <summary>
     /// Representation of an OPC Server Node. 
     /// </summary>
-    class dbNode{
- //        public int Id { get; set; }
+    public class dbNode{
+         public int Id { get; set; }
         public string name {get;set;}
         public string identifier {get;set;}
         public int internalIndex{get;set;}
@@ -128,7 +130,7 @@ namespace ProxyUtils{
     /// index for that URI (which can change at any new session) and the internal node index assigned 
     /// at the node insertion time (which will not change).
     /// </summary>
-    class dbNamespace{
+    public class dbNamespace{
         public int Id { get; set; }
         public string URI {get;set;}
         public int currentServerIndex {get;set;}
@@ -137,7 +139,7 @@ namespace ProxyUtils{
     /// <summary>
     /// Variable stored value
     /// </summary>
-    class dbVariableValue{
+    public class dbVariableValue{
         public int Id { get; set; }
         public string name{get;set;}
         public object value{get;set;}
