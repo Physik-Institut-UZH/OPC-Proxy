@@ -29,7 +29,7 @@ namespace converter {
         }
 
         string getNodeNamespace(string id){
-            Console.WriteLine("get namespace -> " + id );
+            //Console.WriteLine("get namespace -> " + id );
 
             UInt32 uri_index = Convert.ToUInt32((id.Split(";")[0]).Substring(3),10) - 1;
 
@@ -38,7 +38,7 @@ namespace converter {
             return m_namespaceURIs[uri_index];
         }
         object getIdentifier( string id){
-            Console.WriteLine("get Id -> " + id );
+            //Console.WriteLine("get Id -> " + id );
             
             Boolean isNum = false;
             string id_str = "";

@@ -16,8 +16,8 @@ namespace ProxyUtils{
     public class cacheDB {
 //    class cacheDB : IDisposable {
         public double p;
-        LiteDatabase db = null;
-        MemoryStream mem = null;
+        public LiteDatabase db = null;
+        public MemoryStream mem = null;
         
         public LiteCollection<dbNode> nodes {get; private set;}
         public LiteCollection<dbNamespace> namespaces {get;  set;}
@@ -63,7 +63,7 @@ namespace ProxyUtils{
         private void init(){
             mem = new MemoryStream();
 
-            db = (_config.isInMemory) ? new LiteDatabase(@_config.filename) : new LiteDatabase(mem);
+            db = (_config.isInMemory) ? new LiteDatabase(mem) : new LiteDatabase(@_config.filename) ;
             
             createCollections();
         }
@@ -81,19 +81,76 @@ namespace ProxyUtils{
             init();
         }
 
-        /*/public void Dispose(){
-            Dispose(true);
-        }
-        protected virtual void Dispose(bool disposing){
-            Console.WriteLine("dispose");
+        /// <summary>
+        /// Update the cache with the new value of that variable
+        /// </summary>
+        /// <param name="name">name of variable</param>
+        /// <param name="value"> updated value of variable</param>
+        /// <param name="time"> timestamp of when it changed</param>
+        public void updateBuffer(string name, object value, DateTime time){
+            try{
+                dbVariableValue var_idx = latestValues.FindOne(Query.EQ("name",name));
 
-            if(disposed) return ;
-            if (disposing) {
-                db.Dispose();   
-                mem.Dispose();
+                // if not found then search in nodes list
+                if(var_idx == null) 
+                    var_idx = this._initVarValue(name);
+
+                var_idx.value = Convert.ChangeType(value, Type.GetType(var_idx.systemType));
+                var_idx.timestamp = time;
+                latestValues.Upsert(var_idx);
+
+            } 
+            catch (Exception e){
+                Console.Error.WriteLine("Error in updating value for variable " + name);
+                Console.Error.WriteLine(e.StackTrace);
+            }           
+        }
+
+        /// <summary>
+        /// Read a variable value from the DB cache given the name
+        /// </summary>
+        /// <param name="name"> Name of the variable</param>
+        /// <returns>Returns A dbVariable</returns>
+        public dbVariableValue readValue(string name){
+            
+            dbVariableValue read_var = new dbVariableValue();
+
+            try{
+                var temp =  latestValues.FindOne(Query.EQ("name",name));
+                if(temp == null) throw new Exception("Variable does not exist in DB: " + name);
+                
+                read_var = temp;
             }
-            disposed = true;
-        }*/
+            catch(Exception e) {
+                Console.Error.WriteLine("Error in reading value for variable " + name);
+                Console.Error.WriteLine(e.StackTrace);
+            }
+            return read_var;
+        }
+
+        /// <summary>
+        /// Initialization of the variable value in DB, this is used if the variable does not exist yet, 
+        /// then one looks into the nodelist.
+        /// </summary>
+        /// <param name="name">name of the variable value to initialize</param>
+        /// <returns></returns>
+        private dbVariableValue _initVarValue(string name){
+            dbNode var_idx = nodes.FindOne(Query.EQ("name",name));
+            
+            if(var_idx == null)  {
+                Console.WriteLine("ma porxca miseria " + name);
+                throw new Exception("variable does not exist: "+name );
+            }
+            else {
+                dbVariableValue new_var = new dbVariableValue {
+                    Id = var_idx.Id,
+                    name = var_idx.name,
+                    systemType = var_idx.systemType,
+                };
+                return new_var;
+            }
+        }
+        
     }
     
     /// <summary>
@@ -116,7 +173,7 @@ namespace ProxyUtils{
     /// Representation of an OPC Server Node. 
     /// </summary>
     public class dbNode{
-         public int Id { get; set; }
+        public int Id { get; set; }
         public string name {get;set;}
         public string identifier {get;set;}
         public int internalIndex{get;set;}
@@ -143,7 +200,15 @@ namespace ProxyUtils{
         public int Id { get; set; }
         public string name{get;set;}
         public object value{get;set;}
-        public Type systemType {get;set;}
+        public string systemType {get;set;}
         public DateTime timestamp {get;set;}
+
+        public dbVariableValue(){
+            this.Id = -9;
+            this.name = "does_not_exist";
+            this.value = -9;
+            this.systemType = "null";
+            this.timestamp = DateTime.Now;
+        }
     }
 }

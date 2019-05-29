@@ -99,6 +99,7 @@ namespace NetCoreConsoleClient
                     quitEvent.Set();
                     eArgs.Cancel = true;
                 };
+
             }
             catch
             {
@@ -240,8 +241,9 @@ namespace NetCoreConsoleClient
             var list = new List<MonitoredItem> {
                 new MonitoredItem(subscription.DefaultItem)
                 {
-                    DisplayName = "Counter ", StartNodeId = "ns=3;s=\"ciao\""
-//                    DisplayName = "ServerStatusCurrentTime", StartNodeId = "i="+Variables.Server_ServerStatus_CurrentTime.ToString()
+                    //DisplayName = "Counter ", 
+                    StartNodeId = "ns=3;s=\"ciao\""
+//                  DisplayName = "ServerStatusCurrentTime", StartNodeId = "i="+Variables.Server_ServerStatus_CurrentTime.ToString()
                 }
             };
             list.ForEach(i => i.Notification += OnNotification);
