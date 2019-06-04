@@ -14,41 +14,67 @@ using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using Opc.Ua.Client.Controls;
 
+using NLog;
 
 namespace OPC_Proxy
 {
     class Program
     {
+        private static Logger logger = LogManager.GetCurrentClassLogger();
         static int Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
-            JObject j = JObject.Parse("{isInMemory:false, filename:'pollo.dat', juno:'bul'}");
-            cacheDB db = new cacheDB(j);
+            init_logging();
 
-            dbNode node = new dbNode() {
-                classType = "pi",
-                name = "h",
-                internalIndex = 0,
-                systemType = "kkk"
-            };
-            
-                        // command line options
-            int stopTimeout = Timeout.Infinite;
-            bool autoAccept = false;
+            logger.Info("OPC-Proxy starting up...");
 
-            string endpointURL;
-            endpointURL = "opc.tcp://xeplc.physik.uzh.ch:4840/s7OPC";
+            JObject config = JObject.Parse(
+                "{isInMemory:true, filename:'pollo.dat', stopTimeout:-1, autoAccept:false, endpointURL:'opc.tcp://xeplc.physik.uzh.ch:4840/s7OPC'}"
+            );
+            
+            serviceManager man = new serviceManager(config);
+            
+            man.connectOpcClient();
+            man.browseNodesFillCache();
+            man.subscribeOpcNodes();
 
-            MySampleClient client = new MySampleClient(endpointURL, autoAccept, stopTimeout);
-            Console.WriteLine("----> ", TypeInfo.GetBuiltInType("i=4").ToString());
-                Console.WriteLine("----> ", TypeInfo.GetBuiltInType("i=63").ToString());
-            client.Run();
+            ManualResetEvent quitEvent = new ManualResetEvent(false);
+            try
+            {
+                Console.CancelKeyPress += (sender, eArgs) =>
+                {
+                    quitEvent.Set();
+                    eArgs.Cancel = true;
+                };
+
+            }
+            catch
+            {
+            }
+
+            // wait for timeout or Ctrl-C
+            quitEvent.WaitOne(-1);
             
-           
-            
-            return (int)MySampleClient.ExitCode;
+                       
+            return (int)OPCclient.ExitCode;
 
             // db.Dispose();
+        }
+
+
+
+        public static void init_logging(){
+            // Logging 
+            var config = new NLog.Config.LoggingConfiguration();
+            // Targets where to log to: File and Console
+            //var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "file.txt" };
+            var logconsole = new NLog.Targets.ColoredConsoleTarget("logconsole");
+            
+            // Rules for mapping loggers to targets            
+            config.AddRule(LogLevel.Debug, LogLevel.Fatal, logconsole);
+            //config.AddRule(LogLevel.Debug, LogLevel.Fatal, logfile);
+
+            // Apply config           
+            NLog.LogManager.Configuration = config;
         }
     }
 }

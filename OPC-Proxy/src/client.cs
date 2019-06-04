@@ -10,7 +10,10 @@ using Opc.Ua.Client.Controls;
 
 using  converter;
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
+using ProxyUtils;
 
 namespace NetCoreConsoleClient
 {
@@ -31,54 +34,27 @@ namespace NetCoreConsoleClient
     };
 
 
-    public class MySampleClient
+    public class OPCclient : Managed
     {
         const int ReconnectPeriod = 10;
-        Session session;
+        public Session session;
         SessionReconnectHandler reconnectHandler;
         string endpointURL;
         int clientRunTime = Timeout.Infinite;
         static bool autoAccept = false;
         static ExitCode exitCode;
 
-        public MySampleClient(string _endpointURL, bool _autoAccept, int _stopTimeout)
+
+        public OPCclient(JObject config) 
         {
-            endpointURL = _endpointURL;
-            autoAccept = _autoAccept;
-            clientRunTime = _stopTimeout <= 0 ? Timeout.Infinite : _stopTimeout * 1000;
+            var _config = config.ToObject<opcConfig>();
+            endpointURL = _config.endpointURL;
+            autoAccept = _config.autoAccept;
+            clientRunTime = _config.stopTimeout <= 0 ? Timeout.Infinite : _config.stopTimeout * 1000;
         }
 
-        public void read_xml_config(){
 
-            UANodeConverter tc = new  UANodeConverter("hhh", session.NamespaceUris);
-
-            List<Node> ns = tc.convertToLocalNodeset();
-            Console.WriteLine("                 ====== > Found ====> " + ns[0].BrowseName );
-            BuiltInType builtInType = TypeInfo.GetBuiltInType(((VariableNode)ns[0]).DataType);            
-            Type type = TypeInfo.GetSystemType(builtInType, ((VariableNode)ns[0]).ValueRank);  
-            Console.WriteLine(" This is type " + type.ToString());
-            Node test = session.NodeCache.FetchNode(ns[0].NodeId);
-            Console.WriteLine("found   ---> " + test.BrowseName);
-            /*
-            typeConverter t =  new typeConverter();
-
-            foreach ( Opc.Ua.Export.UANode node in nodeSet.Items){
-                Console.WriteLine("browse name of element : " + node.GetType());
-                ;
-                if(node.BrowseName == "ciao" )   {
-                    nodes.Add(node);
-                    Console.WriteLine("Data : " + t.convert("76.9",node).ToString());
-//                    Console.WriteLine("Data : " + TypeInfo.GetBuiltInType();
-                }
-                Console.WriteLine("Browse name" + node.BrowseName);
-                    
-            }
-            */
-               // Console.WriteLine("Found " + nodes.Count.ToString());
-
-        }
-
-        public void Run()
+        public void connect()
         {
             try
             {
@@ -87,11 +63,11 @@ namespace NetCoreConsoleClient
             catch (Exception ex)
             {
                 Utils.Trace("ServiceResultException:" + ex.Message);
-                Console.WriteLine("Exception: {0}", ex.Message);
+                logger.Error("Exception", ex.Message);
                 return;
             }
 
-            ManualResetEvent quitEvent = new ManualResetEvent(false);
+            /*ManualResetEvent quitEvent = new ManualResetEvent(false);
             try
             {
                 Console.CancelKeyPress += (sender, eArgs) =>
@@ -116,13 +92,14 @@ namespace NetCoreConsoleClient
             }
 
             exitCode = ExitCode.Ok;
+            */
         }
 
         public static ExitCode ExitCode { get => exitCode; }
 
         private async Task ConsoleSampleClient()
         {
-            Console.WriteLine("1 - Create an Application Configuration.");
+            logger.Info("1 - Create an Application Configuration.");
             exitCode = ExitCode.ErrorCreateApplication;
 
             ApplicationInstance application = new ApplicationInstance
@@ -153,16 +130,16 @@ namespace NetCoreConsoleClient
             }
             else
             {
-                Console.WriteLine("    WARN: missing application certificate, using unsecure connection.");
+                logger.Warn("missing application certificate, using unsecure connection.");
             }
 
-            Console.WriteLine("2 - Discover endpoints of {0}.", endpointURL);
+            logger.Info("2 - Discover endpoints of {0}.", endpointURL);
             exitCode = ExitCode.ErrorDiscoverEndpoints;
             var selectedEndpoint = CoreClientUtils.SelectEndpoint(endpointURL, haveAppCertificate, 15000);
-            Console.WriteLine("    Selected endpoint uses: {0}",
+            logger.Info("    Selected endpoint uses: {0}",
                 selectedEndpoint.SecurityPolicyUri.Substring(selectedEndpoint.SecurityPolicyUri.LastIndexOf('#') + 1));
 
-            Console.WriteLine("3 - Create a session with OPC UA server.");
+            logger.Info("3 - Create a session with OPC UA server.");
             exitCode = ExitCode.ErrorCreateSession;
             var endpointConfiguration = EndpointConfiguration.Create(config);
             var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, endpointConfiguration);
@@ -170,16 +147,16 @@ namespace NetCoreConsoleClient
             
             // register keep alive handler
             session.KeepAlive += Client_KeepAlive;
+        }
 
-            Console.WriteLine("4 - Browse the OPC UA server namespace.");
+        public void crowl(){
+            logger.Info("4 - Browse the OPC UA server namespace.");
             exitCode = ExitCode.ErrorBrowseNamespace;
             ReferenceDescriptionCollection references;
             Byte[] continuationPoint;
 
             references = session.FetchReferences(ObjectIds.ObjectsFolder);
 
-            read_xml_config();
-            
             session.Browse(
                 null,
                 null,
@@ -192,12 +169,11 @@ namespace NetCoreConsoleClient
                 out continuationPoint,
                 out references);
 
-            Console.WriteLine(" DisplayName, BrowseName, NodeClass");
+            logger.Info(" DisplayName, BrowseName, NodeClass");
             
             foreach (var rd in references)
             { 
-                //Console.WriteLine(" {0}, {1}, {2}, {3}, {4} " , rd.DisplayName, rd.BrowseName, rd.NodeClass, rd.ReferenceTypeId.ToString(), rd.NodeId.NamespaceUri.);
-                Console.WriteLine( rd.NodeId.NamespaceUri);
+                logger.Info( rd.NodeId.NamespaceUri);
                 ReferenceDescriptionCollection nextRefs;
                 byte[] nextCp;
                 session.Browse(
@@ -212,62 +188,19 @@ namespace NetCoreConsoleClient
                     out nextCp,
                     out nextRefs);
 
-                    Dictionary <string, Dictionary<string, VariableNode>> p = new Dictionary<string, Dictionary<string, VariableNode>>();
-                    ObjectNode o ;
+                Dictionary <string, Dictionary<string, VariableNode>> p = new Dictionary<string, Dictionary<string, VariableNode>>();
                 foreach (var nextRd in nextRefs)
                 {
-                    //Console.WriteLine("   + {0}, {1}, {2}, {3} ", nextRd.DisplayName, nextRd.BrowseName, nextRd.NodeClass,  nextRd.NodeId.NamespaceUri);
-                    Console.WriteLine( "   + {0}, {1}, {2} ", nextRd.NodeId.NamespaceUri, nextRd.NodeId.ToString(), nextRd.NodeId.Identifier.ToString());
-                    
-                    /*
-                    if(nextRd.NodeClass.ToString() == "Variable") {
-                        
-                        //Console.WriteLine("Data type " + v.DataType.ToString());
-                      FileStream f = File.Open("temp.dat",FileMode.Open);  
-                        //Stream s = f.Open(FileMode.Open);  
-                        BinaryFormatter b = new BinaryFormatter();
-                    }
-                    */
-                    //Console.WriteLine("is Known  :" + session.NodeCache.IsKnown(nextRd.NodeId).ToString());
+                    logger.Info( "   + {0}, {1}, {2} ", nextRd.NodeId.NamespaceUri, nextRd.NodeId.ToString(), nextRd.NodeId.Identifier.ToString());
+
                 }
             }
 
-            Console.WriteLine("5 - Create a subscription with publishing interval of 1 second.");
-            exitCode = ExitCode.ErrorCreateSubscription;
-            var subscription = new Subscription(session.DefaultSubscription) { PublishingInterval = 1000 };
+        }
 
-            Console.WriteLine("6 - Add a list of items (server current time and status) to the subscription.");
-            exitCode = ExitCode.ErrorMonitoredItem;
-            var list = new List<MonitoredItem> {
-                new MonitoredItem(subscription.DefaultItem)
-                {
-                    //DisplayName = "Counter ", 
-                    StartNodeId = "ns=3;s=\"ciao\""
-//                  DisplayName = "ServerStatusCurrentTime", StartNodeId = "i="+Variables.Server_ServerStatus_CurrentTime.ToString()
-                }
-            };
-            list.ForEach(i => i.Notification += OnNotification);
-            subscription.AddItems(list);
-
-            Console.WriteLine("7 - Add the subscription to the session.");
-            exitCode = ExitCode.ErrorAddSubscription;
-            session.AddSubscription(subscription);
-            subscription.Create();
-
-            Console.WriteLine("8 - Running...Press Ctrl-C to exit...");
-            exitCode = ExitCode.ErrorRunning;
-
-            Console.WriteLine("9 - Reset counter");
+        public void write(){
+            logger.Info("9 - Reset counter");
             session.FetchNamespaceTables();
-            if(session.NamespaceUris != null) 
-                Console.WriteLine("-----> not null {0} ", session.NamespaceUris.GetString(0));
-            
-            Console.WriteLine("-----> ",session.NamespaceUris.Count.ToString());
-            foreach( string s in session.NamespaceUris.ToArray()){
-                Console.WriteLine("session nm {0}", s);
-
-            }
-
 
             // writing value sync :
              try
@@ -298,18 +231,54 @@ namespace NetCoreConsoleClient
 
                 if (StatusCode.IsBad(results[0]))
                 {
-                    Console.WriteLine("----->", resp.ServiceDiagnostics);
                     throw new ServiceResultException(results[0]);
                 }
-                Console.WriteLine("Written OK :)");
+                logger.Info("Written OK :)");
 
             }
             catch (Exception exception)
             {
-                throw exception;
+                logger.Error(exception,"Error during write value");
             }
             
+        }
 
+        public void subscribe(List<serverNode> serverNodes){
+
+            
+            logger.Info("5 - Create a subscription with publishing interval of 1 second.");
+            exitCode = ExitCode.ErrorCreateSubscription;
+            var subscription = new Subscription(session.DefaultSubscription) { PublishingInterval = 1000 };
+
+            logger.Info("6 - Add a list of items (server current time and status) to the subscription.");
+            exitCode = ExitCode.ErrorMonitoredItem;
+            var list = new List<MonitoredItem> {};
+
+            logger.Warn("number of nodes : " + serverNodes.Count);
+
+            foreach( var node in serverNodes){
+                var monItem = new MonitoredItem(subscription.DefaultItem)
+                {
+                    DisplayName = node.name, 
+                    StartNodeId = node.serverIdentifier
+                };
+                Console.WriteLine("----> "+ monItem.DisplayName + " ---- " + monItem.StartNodeId );
+                Console.WriteLine("----> "+ monItem.DisplayName + " ---- " + node.serverIdentifier );
+                monItem.Notification += OnNotification;
+                list.Add(monItem);
+            }
+
+            subscription.AddItems(list);
+
+            logger.Info("7 - Add the subscription to the session.");
+            exitCode = ExitCode.ErrorAddSubscription;
+            session.AddSubscription(subscription);
+            subscription.Create();
+
+            logger.Info("8 - Running...Press Ctrl-C to exit...");
+            exitCode = ExitCode.ErrorRunning;
+
+            
         }
 
         private void Client_KeepAlive(Session sender, KeepAliveEventArgs e)
@@ -367,6 +336,21 @@ namespace NetCoreConsoleClient
         }
 
     }
-    
+
+/// <summary>
+/// class that holds Json configuration for the opc client
+/// </summary>
+    public class opcConfig{
+        public  string  endpointURL { get; set; }
+        public  bool  autoAccept { get; set; }
+        public  int stopTimeout { get; set; }
+
+        public opcConfig(){
+            endpointURL = "none";
+            autoAccept = true;
+            stopTimeout = -1; // infinite
+        }
+    }
+
 }
 

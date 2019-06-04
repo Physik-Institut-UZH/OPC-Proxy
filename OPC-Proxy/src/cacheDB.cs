@@ -7,13 +7,14 @@ using System.IO;
 using LiteDB;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Opc.Ua ;
 
 namespace ProxyUtils{
 
     /// <summary>
     /// Class that holds the in memory cache database. LiteDB is used as chache DB.
     /// </summary>
-    public class cacheDB {
+    public class cacheDB : Managed {
 //    class cacheDB : IDisposable {
         public double p;
         public LiteDatabase db = null;
@@ -81,6 +82,58 @@ namespace ProxyUtils{
             init();
         }
 
+
+        /// <summary>
+        /// Assign to previously loaded namespaces the current local index in the server
+        /// </summary>
+        /// <param name="sessionNamespaceURI"></param>
+        public void updateNamespace(NamespaceTable sessionNamespaceURI){
+            var internal_namespaces = namespaces.FindAll();
+            
+            foreach(var n in internal_namespaces){
+                n.currentServerIndex = sessionNamespaceURI.GetIndex(n.URI);
+                namespaces.Update(n);
+                if(n.currentServerIndex == -1)
+                {
+                    logger.Warn("namespace \"" + n.URI + "\" not found in server");
+                    logger.Warn("The known namespaces are: ");
+                    foreach(var  ns in sessionNamespaceURI.ToArray() ){
+                        logger.Warn("\t'" + ns +"'");
+                    }
+                }
+                logger.Debug("namespace updated '"+n.URI+"' to index " + n.currentServerIndex);
+            }
+
+        }
+
+        /// <summary>
+        /// Returns a list of nodes that can be used to easily point to the current server node
+        /// </summary>
+        /// <returns></returns>
+        public List<serverNode> getDbNodes(){
+            var ns = namespaces.FindAll();
+            Dictionary <int, int> namespace_index_relation = new Dictionary <int,int>{};
+            foreach(var name in ns){
+                namespace_index_relation.Add(name.internalIndex, name.currentServerIndex);
+            }
+
+            List<serverNode> Out = new List<serverNode>{};
+            var nodes_list = nodes.FindAll();
+            logger.Warn("number of nodes : " + nodes_list.Count());
+            
+            foreach(var node in nodes_list){
+                serverNode s = new serverNode(node);
+                s.currentServerIndex = namespace_index_relation.GetValueOrDefault(node.internalIndex);
+                s.serverIdentifier = "ns=" + s.currentServerIndex.ToString();
+                s.serverIdentifier += ";" + node.identifier;
+
+                Out.Add(s);
+            }
+
+            return Out;
+        }
+
+
         /// <summary>
         /// Update the cache with the new value of that variable
         /// </summary>
@@ -93,7 +146,7 @@ namespace ProxyUtils{
 
                 // if not found then search in nodes list
                 if(var_idx == null) 
-                    var_idx = this._initVarValue(name);
+                    var_idx = _initVarValue(name);
 
                 var_idx.value = Convert.ChangeType(value, Type.GetType(var_idx.systemType));
                 var_idx.timestamp = time;
@@ -101,8 +154,7 @@ namespace ProxyUtils{
 
             } 
             catch (Exception e){
-                Console.Error.WriteLine("Error in updating value for variable " + name);
-                Console.Error.WriteLine(e.StackTrace);
+                logger.Error(e, "Error in updating value for variable " + name);
             }           
         }
 
@@ -138,7 +190,6 @@ namespace ProxyUtils{
             dbNode var_idx = nodes.FindOne(Query.EQ("name",name));
             
             if(var_idx == null)  {
-                Console.WriteLine("ma porxca miseria " + name);
                 throw new Exception("variable does not exist: "+name );
             }
             else {
@@ -150,7 +201,7 @@ namespace ProxyUtils{
                 return new_var;
             }
         }
-        
+
     }
     
     /// <summary>
@@ -181,6 +232,30 @@ namespace ProxyUtils{
         public string systemType {get;set;}
         public string[] references{get;set;}
     }
+
+    /// <summary>
+    /// Helper class that can be used to refer to a server node directly. 
+    /// The 'serverIdentifier' identify the node in the current server session.
+    /// </summary>
+    public class serverNode : dbNode
+    {
+        public string serverIdentifier {get; set;}
+        public int currentServerIndex {get; set;}
+
+        public serverNode(dbNode n){
+            Id = n.Id;
+            name = n.name;
+            identifier = n.identifier;
+            internalIndex = n.internalIndex;
+            classType = n.classType;
+            systemType = n.systemType;
+            references = n.references;
+            currentServerIndex = -1;
+            serverIdentifier = "none";
+        }
+    }
+
+
     /// <summary>
     /// Node internal and server related namespace: the nodes in the DB are stored referring to a namespaceIndex which 
     /// is genereted internally at creation time. This table holds the current server namespace 
@@ -189,6 +264,7 @@ namespace ProxyUtils{
     /// </summary>
     public class dbNamespace{
         public int Id { get; set; }
+        public int internalIndex {get; set;}
         public string URI {get;set;}
         public int currentServerIndex {get;set;}
     }
@@ -204,11 +280,11 @@ namespace ProxyUtils{
         public DateTime timestamp {get;set;}
 
         public dbVariableValue(){
-            this.Id = -9;
-            this.name = "does_not_exist";
-            this.value = -9;
-            this.systemType = "null";
-            this.timestamp = DateTime.Now;
+            Id = -9;
+            name = "does_not_exist";
+            value = -9;
+            systemType = "null";
+            timestamp = DateTime.Now;
         }
     }
 }

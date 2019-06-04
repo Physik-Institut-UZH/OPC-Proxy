@@ -5,10 +5,11 @@ using System.Collections.Generic;
 using System.IO;
 
 using ProxyUtils;
+using NLog;
 
 namespace converter {
 
-    public class UANodeConverter{
+    public class UANodeConverter : logged{
         
         Opc.Ua.Export.UANodeSet m_UANodeset ;
         Opc.Ua.Export.NodeIdAlias[] m_aliases;
@@ -29,16 +30,21 @@ namespace converter {
         }
 
         string getNodeNamespace(string id){
-            //Console.WriteLine("get namespace -> " + id );
+            //logger.Debug("get namespace -> " + id );
 
             UInt32 uri_index = Convert.ToUInt32((id.Split(";")[0]).Substring(3),10) - 1;
 
             if(uri_index >=m_namespaceURIs.Length  ) 
-                Console.WriteLine("out of range -- " + id + "   index " + uri_index.ToString());
+                logger.Debug("out of range -- " + id + "   index " + uri_index.ToString());
             return m_namespaceURIs[uri_index];
         }
+        uint getNodeNamespaceIndex(string id){
+            UInt32 uri_index = Convert.ToUInt32((id.Split(";")[0]).Substring(3),10) - 1;
+            return uri_index;
+        }
+
         object getIdentifier( string id){
-            //Console.WriteLine("get Id -> " + id );
+            //logger.Debug("get Id -> " + id );
             
             Boolean isNum = false;
             string id_str = "";
@@ -75,10 +81,10 @@ namespace converter {
             
             // check first in the aliases
             foreach(NodeIdAlias alias in m_aliases) {
-                    Console.WriteLine("------ Substring ----- " + alias.Value + "  sub-> " );//+alias.Value.Substring(2));
+                    logger.Debug("------ Substring ----- " + alias.Value + "  sub-> " );//+alias.Value.Substring(2));
 
                 if(alias.Alias == var.DataType) {
-                    Console.WriteLine("------ Matched with " + var.DataType );//+alias.Value.Substring(2));
+                    logger.Debug("------ Matched with " + var.DataType );//+alias.Value.Substring(2));
 
                     // case of non built it dataType alias
                     if(alias.Value.Split(";").Length > 1) {
@@ -92,10 +98,10 @@ namespace converter {
                     else return new NodeId((uint)getIdentifier(alias.Value));
                 }
             }
-            Console.WriteLine("Not in Aliases " + var.DataType);
+            logger.Debug("Not in Aliases " + var.DataType);
             // Check if is a nodeID
             if( var.DataType.Substring(0,2) == "i=" ||var.DataType.Substring(0,3) == "ns=" ){
-                Console.WriteLine("nodeID in dataType " + var.DataType);
+                logger.Debug("nodeID in dataType " + var.DataType);
                 return NodeId.Create(
                     getIdentifier(var.DataType),
                     getNodeNamespace(var.DataType),
@@ -120,11 +126,11 @@ namespace converter {
                             getNodeNamespace(alias.Value),
                             session_namespace
                             );
-                        Console.WriteLine("Non built in data type " + var.DataType);
-                        Console.WriteLine("Trying interpreting as built in data type " + alias.Value);
+                        logger.Debug("Non built in data type " + var.DataType);
+                        logger.Debug("Trying interpreting as built in data type " + alias.Value);
                         BuiltInType b = TypeInfo.GetBuiltInType( n );
                         if(b == BuiltInType.Null) {
-                            Console.WriteLine("Not found type " + var.DataType + " skipping variable " + var.BrowseName);
+                            logger.Debug("Not found type " + var.DataType + " skipping variable " + var.BrowseName);
                             return "null";
                         }
                         return TypeInfo.GetSystemType(b, var.ValueRank).ToString();
@@ -132,7 +138,7 @@ namespace converter {
                     }
                     // case of built in DataType alias
                     else {
-                        Console.WriteLine("built in data type " + var.DataType);
+                        logger.Debug("built in data type " + var.DataType);
 
                         NodeId n = new NodeId((uint)getIdentifier(alias.Value));
                         BuiltInType b = TypeInfo.GetBuiltInType( n );
@@ -140,10 +146,10 @@ namespace converter {
                     }
                 }
             }
-            Console.WriteLine("Not in Aliases " + var.DataType);
+            logger.Debug("Not in Aliases " + var.DataType);
             // Check if is a nodeID
             if( var.DataType.Substring(0,2) == "i=" ||var.DataType.Substring(0,3) == "ns=" ){
-                Console.WriteLine("nodeID in dataType " + var.DataType);
+                logger.Debug("nodeID in dataType " + var.DataType);
                 NodeId n = NodeId.Create(
                     getIdentifier(var.DataType),
                     getNodeNamespace(var.DataType),
@@ -197,6 +203,24 @@ namespace converter {
 
         public void fillCacheDB( cacheDB db){
             if(m_UANodeset == null || m_UANodeset.Items.Length == 0 ) throw new Exception("No UA nodes loaded");
+
+            // fill the namespace in DB
+            logger.Debug("filling cache DB ");
+            for( int k =0; k < m_namespaceURIs.Length; k++) {
+                dbNamespace ns = new dbNamespace {
+                    internalIndex = k,
+                    URI = m_namespaceURIs[k],
+                    currentServerIndex = -1
+                };
+                logger.Debug("filling cache --- inserting : " + k);
+
+                db.namespaces.Insert(ns);
+
+            }
+            logger.Debug("filling cache DB End ");
+
+            // connect the server index to the corresponding xml_index
+            db.updateNamespace(session_namespace);
             
             foreach ( Opc.Ua.Export.UANode node in m_UANodeset.Items){
 
@@ -212,6 +236,8 @@ namespace converter {
                     db_node.identifier = getIdentifierToString(xml_node.NodeId) ;
                     // Assign data type
                     db_node.systemType = get_systemDataType(xml_node);
+                    // Assign internal index
+                    db_node.internalIndex = ((int)getNodeNamespaceIndex(xml_node.NodeId));
 
                     // Assign Rank and other
                     // FIXME
