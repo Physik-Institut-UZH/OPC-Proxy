@@ -8,13 +8,21 @@ using LiteDB;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Opc.Ua ;
+using Opc.Ua.Client;
 
 namespace ProxyUtils{
+  public enum ReadStatusCode : int
+    {
+        Ok = 0,
+        VariableNotFoundInDB = 1
+        
+    };
+
 
     /// <summary>
     /// Class that holds the in memory cache database. LiteDB is used as chache DB.
     /// </summary>
-    public class cacheDB : Managed {
+    public class cacheDB : Managed, IOPCconnect {
 //    class cacheDB : IDisposable {
         public double p;
         public LiteDatabase db = null;
@@ -82,6 +90,20 @@ namespace ProxyUtils{
             init();
         }
 
+        /// <summary>
+        /// IOPCconnect.OnNotification interface implementation see <see cref="IOPCconnect"/> for description.
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="e"></param>
+        public void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e){
+            var values = item.DequeueValues();
+            if(values.Count !=1 ) logger.Error("Error in updating value for \""+item.DisplayName+"\", arrays are not supported");
+            else {
+                updateBuffer(item.DisplayName, values[0].Value, values[0].SourceTimestamp);
+                logger.Debug("Updating value for {0} to {1} at {2}", item.DisplayName, values[0].Value, values[0].SourceTimestamp);
+            }
+        }
+
 
         /// <summary>
         /// Assign to previously loaded namespaces the current local index in the server
@@ -135,6 +157,28 @@ namespace ProxyUtils{
 
 
         /// <summary>
+        /// Return a ServerNode, the current representation in the server for that node
+        /// </summary>
+        /// <param name="name">Name of the variable</param>
+        /// <returns></returns>
+        public serverNode getServerNode(string name){
+            var node = nodes.FindOne(Query.EQ("name", name));
+            if(node == null){
+                throw new Exception("Node does not exist");
+            }
+            serverNode s = new serverNode(node);
+            var ns = namespaces.FindOne(Query.EQ("internalIndex", node.internalIndex));
+            if(ns == null){
+                throw new Exception("Node Exist but has not related namespace");
+            }
+            s.currentServerIndex = ns.currentServerIndex;
+            s.serverIdentifier = "ns=" + s.currentServerIndex.ToString();
+            s.serverIdentifier += ";" + node.identifier;
+
+            return s;
+        }
+
+        /// <summary>
         /// Update the cache with the new value of that variable
         /// </summary>
         /// <param name="name">name of variable</param>
@@ -147,7 +191,7 @@ namespace ProxyUtils{
                 // if not found then search in nodes list
                 if(var_idx == null) 
                     var_idx = _initVarValue(name);
-
+                logger.Debug("value -> "+value.ToString() + "  type --> " + var_idx.systemType);
                 var_idx.value = Convert.ChangeType(value, Type.GetType(var_idx.systemType));
                 var_idx.timestamp = time;
                 latestValues.Upsert(var_idx);
@@ -155,28 +199,38 @@ namespace ProxyUtils{
             } 
             catch (Exception e){
                 logger.Error(e, "Error in updating value for variable " + name);
+                Console.WriteLine(e.Message);
             }           
         }
 
         /// <summary>
-        /// Read a variable value from the DB cache given the name
+        /// Read a list of variables value from the DB cache given their names.
+        /// Note: this function is not async, since liteDB do not support it yet.
         /// </summary>
-        /// <param name="name"> Name of the variable</param>
-        /// <returns>Returns A dbVariable</returns>
-        public dbVariableValue readValue(string name){
+        /// <param name="names">List of names of the variables</param>
+        /// <param name="status">Status of the transaction, "Ok" if good, else see <see cref="ReadStatusCode"/> </param>
+        /// <returns>Returns a list of dbVariable</returns>
+        public dbVariableValue[] readValue(string[] names, out ReadStatusCode status){
             
-            dbVariableValue read_var = new dbVariableValue();
+            BsonArray bson_arr = new BsonArray();
+            foreach(string name in names ){
+                bson_arr.Add(name);
+            }
 
-            try{
-                var temp =  latestValues.FindOne(Query.EQ("name",name));
-                if(temp == null) throw new Exception("Variable does not exist in DB: " + name);
-                
-                read_var = temp;
+            dbVariableValue[] read_var =  latestValues.Find(Query.In("name",bson_arr)).ToArray();
+            
+            if(read_var.Count() != names.Length)  { 
+                status = ReadStatusCode.VariableNotFoundInDB;
+
+                string l = "";
+                List<dbVariableValue> values = read_var.ToList();
+                foreach(var v in names){
+                    if( values.Find( x => x.name == v) == null) l += v + ", ";
+                }
+                logger.Warn("Some of the varibles requested to read were not found: " + l );
             }
-            catch(Exception e) {
-                Console.Error.WriteLine("Error in reading value for variable " + name);
-                Console.Error.WriteLine(e.StackTrace);
-            }
+            else status = ReadStatusCode.Ok;
+            
             return read_var;
         }
 

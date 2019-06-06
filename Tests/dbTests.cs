@@ -22,7 +22,7 @@ namespace Tests
 
             Opc.Ua.NamespaceTable nt = new Opc.Ua.NamespaceTable();
             nt.Append("http://www.siemens.com/simatic-s7-opcua");
-            UANodeConverter ua = new UANodeConverter("ppp", nt);
+            UANodeConverter ua = new UANodeConverter("nodeset.xml", nt);
             ua.fillCacheDB(cDB);
 
         }
@@ -52,15 +52,17 @@ namespace Tests
         [Fact]
         public void readFromDB(){
             cDB.updateBuffer("ciao",72,DateTime.Now);
-            var q = cDB.readValue("ciao");
-            Assert.NotNull(q);
-            Assert.Equal(72, q.value);
+            ReadStatusCode s;
+            
+            var q = cDB.readValue( (new string[] {"ciao"}), out s);
+            Assert.Equal(1, q.Length );
+            Assert.Equal(72, q[0].value);
+            Assert.Equal(DateTime.Now.Second, q[0].timestamp.Second);
+            Assert.Equal(ReadStatusCode.Ok, s);
 
-            var p = cDB.readValue("ciao1");
-            Assert.Equal(-9, p.value);
-            Assert.Equal("does_not_exist", p.name);
-            Assert.Equal("null", p.systemType);
-            Assert.Equal(DateTime.Now.Second, p.timestamp.Second);
+            var p = cDB.readValue((new string[] {"ciao1"}), out s);
+            Assert.Equal(0, p.Length);
+            Assert.Equal(ReadStatusCode.VariableNotFoundInDB, s);
         }
     }
 }

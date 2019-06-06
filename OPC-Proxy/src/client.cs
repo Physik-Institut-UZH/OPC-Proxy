@@ -44,7 +44,7 @@ namespace NetCoreConsoleClient
         static bool autoAccept = false;
         static ExitCode exitCode;
 
-
+        
         public OPCclient(JObject config) 
         {
             var _config = config.ToObject<opcConfig>();
@@ -198,6 +198,47 @@ namespace NetCoreConsoleClient
 
         }
 
+        private IAsyncResult beginWriteWrapper(AsyncCallback callback, object nodes_to_write){
+            return session.BeginWrite(null, (WriteValueCollection)nodes_to_write, callback, null);
+        }
+        private StatusCodeCollection endWriteWrapper( IAsyncResult as_result){
+            DiagnosticInfoCollection diagnosticInfos = null;
+            StatusCodeCollection status = null;
+            session.EndWrite(as_result, out status, out diagnosticInfos);
+            return status;
+        }
+
+        public Task<StatusCodeCollection> badStatusCall(){
+            return new Task<StatusCodeCollection>( () => {
+                    StatusCodeCollection badstatus = new StatusCodeCollection();
+                    badstatus.Add(StatusCodes.Bad);
+                    return badstatus; 
+                });
+        }
+        public Task<StatusCodeCollection> asyncWrite(serverNode node, object value){
+
+            WriteValue valueToWrite = new WriteValue();
+            NodeId m_nodeId = new NodeId(node.serverIdentifier);
+            valueToWrite.NodeId = m_nodeId;
+            valueToWrite.AttributeId = Attributes.Value;
+            try {
+                valueToWrite.Value.Value = Convert.ChangeType( value, Type.GetType( node.systemType ));
+            }
+            catch (Exception e){
+                logger.Error(e, "Error during conversion of node value");
+                return badStatusCall();
+            }
+            
+            valueToWrite.Value.StatusCode = StatusCodes.Good;
+
+            WriteValueCollection valuesToWrite = new WriteValueCollection();
+            valuesToWrite.Add(valueToWrite);
+            
+            return Task.Factory.FromAsync<StatusCodeCollection>(beginWriteWrapper,endWriteWrapper, valuesToWrite);
+
+        }
+
+        
         public void write(){
             logger.Info("9 - Reset counter");
             session.FetchNamespaceTables();
@@ -218,6 +259,7 @@ namespace NetCoreConsoleClient
                 // write current value.
                 StatusCodeCollection results = null;
                 DiagnosticInfoCollection diagnosticInfos = null;
+
 
                 // RequestHeader req = new RequestHeader();
                 ResponseHeader resp =  session.Write(
@@ -243,9 +285,9 @@ namespace NetCoreConsoleClient
             
         }
 
-        public void subscribe(List<serverNode> serverNodes){
+        public void subscribe(List<serverNode> serverNodes, List<MonitoredItemNotificationEventHandler> handlers){
 
-            
+
             logger.Info("5 - Create a subscription with publishing interval of 1 second.");
             exitCode = ExitCode.ErrorCreateSubscription;
             var subscription = new Subscription(session.DefaultSubscription) { PublishingInterval = 1000 };
@@ -262,9 +304,9 @@ namespace NetCoreConsoleClient
                     DisplayName = node.name, 
                     StartNodeId = node.serverIdentifier
                 };
-                Console.WriteLine("----> "+ monItem.DisplayName + " ---- " + monItem.StartNodeId );
-                Console.WriteLine("----> "+ monItem.DisplayName + " ---- " + node.serverIdentifier );
-                monItem.Notification += OnNotification;
+                foreach(var handler in handlers) {
+                    monItem.Notification += handler;
+                }
                 list.Add(monItem);
             }
 

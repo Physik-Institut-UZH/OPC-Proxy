@@ -14,6 +14,8 @@ using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using Opc.Ua.Client.Controls;
 
+using System.Timers;
+
 using NLog;
 
 namespace OPC_Proxy
@@ -31,11 +33,20 @@ namespace OPC_Proxy
                 "{isInMemory:true, filename:'pollo.dat', stopTimeout:-1, autoAccept:false, endpointURL:'opc.tcp://xeplc.physik.uzh.ch:4840/s7OPC'}"
             );
             
+            
             serviceManager man = new serviceManager(config);
             
             man.connectOpcClient();
             man.browseNodesFillCache();
             man.subscribeOpcNodes();
+
+            System.Timers.Timer aTimer = new System.Timers.Timer(2000);
+            aTimer.AutoReset = true;
+            aTimer.Enabled = true;
+            aTimer.Elapsed += man.OnTimedEvent; 
+
+
+            //man.writeToOPCserver("ciao",4);
 
             ManualResetEvent quitEvent = new ManualResetEvent(false);
             try
@@ -70,7 +81,7 @@ namespace OPC_Proxy
             var logconsole = new NLog.Targets.ColoredConsoleTarget("logconsole");
             
             // Rules for mapping loggers to targets            
-            config.AddRule(LogLevel.Debug, LogLevel.Fatal, logconsole);
+            config.AddRule(LogLevel.Info, LogLevel.Fatal, logconsole);
             //config.AddRule(LogLevel.Debug, LogLevel.Fatal, logfile);
 
             // Apply config           

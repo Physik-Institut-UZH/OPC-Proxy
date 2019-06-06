@@ -19,7 +19,7 @@ namespace converter {
 
         public UANodeConverter(string filename, NamespaceTable SessionNamespaceURIs){
 
-            using (Stream stream = new FileStream("nodeset.xml", FileMode.Open)){
+            using (Stream stream = new FileStream(filename, FileMode.Open)){
                 m_UANodeset = UANodeSet.Read(stream);
                 m_aliases = m_UANodeset.Aliases;
                 m_namespaceURIs = m_UANodeset.NamespaceUris;
@@ -138,7 +138,7 @@ namespace converter {
                     }
                     // case of built in DataType alias
                     else {
-                        logger.Debug("built in data type " + var.DataType);
+                        logger.Debug("Alias for " + var.BrowseName + " is a built in data type " + var.DataType);
 
                         NodeId n = new NodeId((uint)getIdentifier(alias.Value));
                         BuiltInType b = TypeInfo.GetBuiltInType( n );
@@ -226,6 +226,8 @@ namespace converter {
 
                 if(node.GetType().ToString() == "Opc.Ua.Export.UAVariable"){
 
+                    bool skip = false;
+
                     Opc.Ua.Export.UAVariable xml_node = node as UAVariable;
 
                     // creating the variableNode
@@ -242,13 +244,23 @@ namespace converter {
                     // Assign Rank and other
                     // FIXME
                     //db_node.ValueRank   = xml_node.ValueRank;
-                    if(xml_node.ValueRank > 1 ) throw new Exception("Arrays are not supported yet. Error for Node: " + node.BrowseName);
-
+                    if(xml_node.ValueRank > 1 ) {
+                        skip = true;
+                        logger.Error("Arrays are not supported yet. Skip Node: " + node.BrowseName);
+                    }
+                    // skipping not built in types... FIXME
+                    if( !db_node.systemType.StartsWith("System") ){
+                        skip = true;
+                        logger.Error("Only System types are supported for now. Skip Node: " + node.BrowseName + "  type: " + db_node.systemType );
+                    }
                     if(xml_node.DisplayName != null && xml_node.DisplayName[0] != null)
                         db_node.name  = node.DisplayName[0].Value;
-                    else db_node.name = node.BrowseName;
+                    else {
+                        db_node.name = node.BrowseName;
+                        logger.Warn("Node: " + node.BrowseName + "  does not have DisplayName, using browseName instead");
+                    }
 
-                    if(db_node.systemType != "null" || db_node.systemType != "Null")
+                    if(db_node.systemType.ToLower() != "null" && !skip)
                         db.nodes.Insert(db_node);
                 }
 
