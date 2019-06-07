@@ -30,5 +30,8 @@ msbuild.wrn
 
 *.dat
 
+# Node 
+**/node_modules/
+
 # Visual Studio 2015
 .vs/

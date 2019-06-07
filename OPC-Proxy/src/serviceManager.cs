@@ -20,17 +20,35 @@ namespace ProxyUtils{
     public class serviceManager : logged{
         private cacheDB db;
         private OPCclient opc;
+
+        private List<IOPCconnect> connector_list;
+
+        private JObject _config;
         
         public serviceManager(JObject config){
-        
+            
+            _config = config;
+
             opc = new OPCclient(config);
             db = new cacheDB(config);
+
+            connector_list = new List<IOPCconnect>{};
 
             // setting up the comunication line back to the manager
             opc.setPointerToManager(this);
             db.setPointerToManager(this);
         }
         
+        public void addConnector(IOPCconnect connector){
+            connector_list.Add(connector);
+        }
+        public void initConnectors(){
+            foreach(var c in connector_list){
+                c.setServiceManager(this);
+                c.init(_config);
+            }
+        }
+
 // --------------- KILL ME
         public void OnTimedEvent(Object source, ElapsedEventArgs e)
         {
@@ -136,7 +154,10 @@ namespace ProxyUtils{
         public static Logger logger = LogManager.GetCurrentClassLogger();
     }
 
-
+    /// <summary>
+    /// Inteface to connect any service to the OPC-Proxy core stack.
+    /// Need to add the following dependencies: Newtonsoft.Json.Linq, Opc.Ua, Opc.Ua.Client, ProxyUtils
+    /// </summary>
     public interface IOPCconnect{
         /// <summary>
         /// Event Handler for the subscribed MonitoredItem (node), this will be attached to all monitored nodes.
@@ -145,5 +166,17 @@ namespace ProxyUtils{
         /// <param name="e">Some additional arguments, not in use at the moment.</param>
         void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e);
 
+        /// <summary>
+        /// This is to get the pointer to the service manager and have access to
+        /// all it methods. One needs to store this pointer to a local variable.
+        /// </summary>
+        /// <param name="serv">Pointer to the current service manager</param>
+        void setServiceManager( serviceManager serv);
+
+        /// <summary>
+        /// Initialization. Everything that needs to be done for initializzation will be passed here.
+        /// </summary>
+        /// <param name="config">JSON configuration see Newtonsoft.Json for how to parse an object out of it</param>
+        void init(JObject config);
     }
 }

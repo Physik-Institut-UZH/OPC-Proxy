@@ -209,11 +209,9 @@ namespace NetCoreConsoleClient
         }
 
         public Task<StatusCodeCollection> badStatusCall(){
-            return new Task<StatusCodeCollection>( () => {
-                    StatusCodeCollection badstatus = new StatusCodeCollection();
-                    badstatus.Add(StatusCodes.Bad);
-                    return badstatus; 
-                });
+            StatusCodeCollection badstatus = new StatusCodeCollection();
+            badstatus.Add(StatusCodes.Bad);
+            return Task.FromResult(badstatus);
         }
         public Task<StatusCodeCollection> asyncWrite(serverNode node, object value){
 

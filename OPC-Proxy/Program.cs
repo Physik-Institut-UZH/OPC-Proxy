@@ -18,6 +18,11 @@ using System.Timers;
 
 using NLog;
 
+using Grpc.Core;
+using OpcGrpcConnect;
+
+
+
 namespace OPC_Proxy
 {
     class Program
@@ -40,13 +45,20 @@ namespace OPC_Proxy
             man.browseNodesFillCache();
             man.subscribeOpcNodes();
 
+            HttpImpl opcHttpConnector = new HttpImpl();
+            man.addConnector(opcHttpConnector);
+
+            man.initConnectors();
+
+
             System.Timers.Timer aTimer = new System.Timers.Timer(2000);
             aTimer.AutoReset = true;
             aTimer.Enabled = true;
             aTimer.Elapsed += man.OnTimedEvent; 
 
-
             //man.writeToOPCserver("ciao",4);
+
+
 
             ManualResetEvent quitEvent = new ManualResetEvent(false);
             try
@@ -87,5 +99,7 @@ namespace OPC_Proxy
             // Apply config           
             NLog.LogManager.Configuration = config;
         }
+
+        
     }
 }

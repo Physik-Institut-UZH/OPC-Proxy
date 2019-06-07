@@ -22,7 +22,7 @@ namespace ProxyUtils{
     /// <summary>
     /// Class that holds the in memory cache database. LiteDB is used as chache DB.
     /// </summary>
-    public class cacheDB : Managed, IOPCconnect {
+    public class cacheDB : Managed {
 //    class cacheDB : IDisposable {
         public double p;
         public LiteDatabase db = null;
