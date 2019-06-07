@@ -51,11 +51,11 @@ namespace OPC_Proxy
             man.initConnectors();
 
 
-            System.Timers.Timer aTimer = new System.Timers.Timer(2000);
+            /*System.Timers.Timer aTimer = new System.Timers.Timer(2000);
             aTimer.AutoReset = true;
             aTimer.Enabled = true;
             aTimer.Elapsed += man.OnTimedEvent; 
-
+            */
             //man.writeToOPCserver("ciao",4);
 
 

@@ -68,6 +68,8 @@ namespace OpcGrpcConnect
             r.IsError = (Opc.Ua.StatusCode.IsBad(statuses[0]));
             r.ErrorMessage = (r.IsError) ? "Error" : "none";
 
+            if(r.IsError) Console.WriteLine("Error in writing");
+            else Console.WriteLine("Written value: " +  request.Value );
             return r;
         }
 
