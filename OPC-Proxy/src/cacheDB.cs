@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Opc.Ua ;
 using Opc.Ua.Client;
+using OpcProxyClient ;
 
 namespace ProxyUtils{
   public enum ReadStatusCode : int
@@ -95,12 +96,12 @@ namespace ProxyUtils{
         /// </summary>
         /// <param name="item"></param>
         /// <param name="e"></param>
-        public void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e){
-            var values = item.DequeueValues();
-            if(values.Count !=1 ) logger.Error("Error in updating value for \""+item.DisplayName+"\", arrays are not supported");
-            else {
-                updateBuffer(item.DisplayName, values[0].Value, values[0].SourceTimestamp);
-                logger.Debug("Updating value for {0} to {1} at {2}", item.DisplayName, values[0].Value, values[0].SourceTimestamp);
+        //public void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e){
+        public void OnNotification(object sub, MonItemNotificationArgs items){
+
+             foreach(var itm in items.values){
+                updateBuffer(items.name, itm.Value, itm.SourceTimestamp);
+                logger.Debug("Updating value for {0} to {1} at {2}", items.name, itm.Value, itm.SourceTimestamp);
             }
         }
 

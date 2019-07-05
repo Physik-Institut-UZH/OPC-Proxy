@@ -18,10 +18,11 @@ using Grpc.Core;
 using OpcGrpcConnect;
 using System.Collections.Generic;
 
-using Opc.Ua.Client; 
+using OpcProxyClient; 
 using Opc.Ua; 
 using ProxyUtils;
 using Newtonsoft.Json.Linq;
+using NLog;
 
 
 namespace OpcGrpcConnect
@@ -31,15 +32,15 @@ namespace OpcGrpcConnect
 
         private serviceManager _services;
         private Server server;
+        public static Logger logger = LogManager.GetCurrentClassLogger();
+
 
         // Server side handler of the SayHello RPC
         public override Task<ReadResponse> ReadOpcNodes(ReadRequest request, ServerCallContext context)
         {
-            Console.WriteLine("-----> Got message from client! got many values: ---> " + request.Names.Count );
             List<string> names = new List<string>{};
 
             foreach( var name in request.Names){
-                Console.WriteLine("-----> " + name );
                 names.Add(name);
             }
             ReadStatusCode status;
@@ -68,8 +69,8 @@ namespace OpcGrpcConnect
             r.IsError = (Opc.Ua.StatusCode.IsBad(statuses[0]));
             r.ErrorMessage = (r.IsError) ? "Error" : "none";
 
-            if(r.IsError) Console.WriteLine("Error in writing");
-            else Console.WriteLine("Written value: " +  request.Value );
+            if(r.IsError) logger.Error("Error in writing");
+            else logger.Debug("Written value: " +  request.Value + "  on variable " + request.Name );
             return r;
         }
 
@@ -79,7 +80,7 @@ namespace OpcGrpcConnect
         /// </summary>
         /// <param name="item"></param>
         /// <param name="e"></param>
-        public void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e){
+        public void OnNotification(object obj, MonItemNotificationArgs args){
 
         }
 
@@ -106,7 +107,7 @@ namespace OpcGrpcConnect
             
             server.Start();
 
-            Console.WriteLine("Listening on port 50051 ...");
+            logger.Info("Listening on port 50051 ...");
             //server.ShutdownAsync().Wait();
 
         }

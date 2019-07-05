@@ -1,8 +1,7 @@
-using NetCoreConsoleClient;
+using OpcProxyClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Opc.Ua;
-using Opc.Ua.Client;
 using NLog;
 using converter;
 using System.Threading.Tasks;
@@ -49,20 +48,6 @@ namespace ProxyUtils{
             }
         }
 
-// --------------- KILL ME
-        public void OnTimedEvent(Object source, ElapsedEventArgs e)
-        {
-            ReadStatusCode s;
-            dbVariableValue[] vs = readValueFromCache(new string[]{"ciao"}, out s);
-            if(s == ReadStatusCode.Ok) 
-                logger.Info("read! " + vs[0].name + " value " + vs[0].value);
-            else{
-                logger.Error("Read failed");
-            }
-        }
-
-//-----------------------------
-
         public void connectOpcClient(){
             opc.connect();
         }
@@ -99,10 +84,14 @@ namespace ProxyUtils{
         /// Each eventHandler will be attached to any monitoredItem (and so to any selected node).
         /// </summary>
         /// <returns></returns>
-        private List<MonitoredItemNotificationEventHandler> collectOnNotificationEventHandlers(){
+        private List<EventHandler<MonItemNotificationArgs>> collectOnNotificationEventHandlers(){
             
-            List<MonitoredItemNotificationEventHandler> t = new List<MonitoredItemNotificationEventHandler>{};
+            List<EventHandler<MonItemNotificationArgs>> t = new List<EventHandler<MonItemNotificationArgs>>{};
             t.Add(db.OnNotification);
+
+            foreach( var connector in connector_list){
+                t.Add(connector.OnNotification);
+            }
 
             return t;
         }
@@ -156,15 +145,16 @@ namespace ProxyUtils{
 
     /// <summary>
     /// Inteface to connect any service to the OPC-Proxy core stack.
-    /// Need to add the following dependencies: Newtonsoft.Json.Linq, Opc.Ua, Opc.Ua.Client, ProxyUtils
+    /// Need to add the following dependencies: OpcProxyClient, Newtonsoft.Json.Linq, Opc.Ua, ProxyUtils
     /// </summary>
     public interface IOPCconnect{
         /// <summary>
         /// Event Handler for the subscribed MonitoredItem (node), this will be attached to all monitored nodes.
         /// </summary>
-        /// <param name="item">The item that has been updated</param>
-        /// <param name="e">Some additional arguments, not in use at the moment.</param>
-        void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e);
+        /// <param name="emitter">The ProxyClient that has emitted the event, you don't need this variable.</param>
+        /// <param name="items">List of received values (it can be more than one if there are connection hiccups due to opc serverside batching).
+        /// see MonItemNotificationArgs </param>
+        void OnNotification(object emitter, MonItemNotificationArgs items);
 
         /// <summary>
         /// This is to get the pointer to the service manager and have access to

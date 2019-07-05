@@ -15,7 +15,7 @@ using Newtonsoft.Json.Linq;
 
 using ProxyUtils;
 
-namespace NetCoreConsoleClient
+namespace OpcProxyClient
 {
 
     public enum ExitCode : int
@@ -33,6 +33,10 @@ namespace NetCoreConsoleClient
         ErrorInvalidCommandLine = 0x100
     };
 
+    public class MonItemNotificationArgs : EventArgs{
+        public IList<DataValue> values {get; set;}
+        public string name {get; set;}
+    }
 
     public class OPCclient : Managed
     {
@@ -44,7 +48,8 @@ namespace NetCoreConsoleClient
         static bool autoAccept = false;
         static ExitCode exitCode;
 
-        
+        public event EventHandler<MonItemNotificationArgs> MonitoredItemChanged;
+
         public OPCclient(JObject config) 
         {
             var _config = config.ToObject<opcConfig>();
@@ -283,7 +288,7 @@ namespace NetCoreConsoleClient
             
         }
 
-        public void subscribe(List<serverNode> serverNodes, List<MonitoredItemNotificationEventHandler> handlers){
+        public void subscribe(List<serverNode> serverNodes, List<EventHandler<MonItemNotificationArgs>> handlers){
 
 
             logger.Info("5 - Create a subscription with publishing interval of 1 second.");
@@ -296,16 +301,19 @@ namespace NetCoreConsoleClient
 
             logger.Warn("number of nodes : " + serverNodes.Count);
 
+            // addind client notification handler
             foreach( var node in serverNodes){
                 var monItem = new MonitoredItem(subscription.DefaultItem)
                 {
                     DisplayName = node.name, 
                     StartNodeId = node.serverIdentifier
                 };
-                foreach(var handler in handlers) {
-                    monItem.Notification += handler;
-                }
+                monItem.Notification += OnNotification;
                 list.Add(monItem);
+            }
+            // Adding all user defined notification handlers
+            foreach(var handler in handlers) {
+                MonitoredItemChanged += handler;
             }
 
             subscription.AddItems(list);
@@ -320,6 +328,7 @@ namespace NetCoreConsoleClient
 
             
         }
+
 
         private void Client_KeepAlive(Session sender, KeepAliveEventArgs e)
         {
@@ -351,11 +360,24 @@ namespace NetCoreConsoleClient
             Console.WriteLine("--- RECONNECTED ---");
         }
 
-        private static void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e)
+        /// <summary>
+        /// This is a wrpapper, it is needed because once you call DequeueValues on a monitored item 
+        /// the cache of the monitored item is actually cleared, so is not a good object to pass in an 
+        /// event handler because the second handler that runs will have an empty MonitoredItem.
+        /// So here the values are unpacked from the original MonitoredItem, wrapped in a less arcane way 
+        /// in another class and then an event is emitted that pass that values to all handlers.
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="e"></param>
+        private void OnNotification(MonitoredItem item, MonitoredItemNotificationEventArgs e)
         {
-            foreach (var value in item.DequeueValues())
+            MonItemNotificationArgs notification = new MonItemNotificationArgs();
+            notification.values = item.DequeueValues();
+            notification.name = item.DisplayName;
+            EventHandler<MonItemNotificationArgs> handler = MonitoredItemChanged; 
+            if (handler != null)
             {
-                Console.WriteLine("{0}: {1}, {2}, {3}", item.DisplayName, value.Value, value.SourceTimestamp, value.StatusCode);
+                handler(this,notification);
             }
         }
 

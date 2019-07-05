@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using ProxyUtils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using NetCoreConsoleClient;
+using OpcProxyClient;
 
 using Opc.Ua;
 using Opc.Ua.Client;
@@ -20,7 +20,7 @@ using NLog;
 
 using Grpc.Core;
 using OpcGrpcConnect;
-
+using OpcInfluxConnect;
 
 
 namespace OPC_Proxy
@@ -43,10 +43,15 @@ namespace OPC_Proxy
             
             man.connectOpcClient();
             man.browseNodesFillCache();
-            man.subscribeOpcNodes();
+            
 
             HttpImpl opcHttpConnector = new HttpImpl();
+            InfluxImpl influx = new InfluxImpl();
+
             man.addConnector(opcHttpConnector);
+            man.addConnector(influx);
+
+            man.subscribeOpcNodes();
 
             man.initConnectors();
 
@@ -94,7 +99,7 @@ namespace OPC_Proxy
             
             // Rules for mapping loggers to targets            
             config.AddRule(LogLevel.Info, LogLevel.Fatal, logconsole);
-            //config.AddRule(LogLevel.Debug, LogLevel.Fatal, logfile);
+            //config.AddRule(LogLevel.Debug, LogLevel.Fatal, logconsole);
 
             // Apply config           
             NLog.LogManager.Configuration = config;
